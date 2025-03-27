@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as xml2js from 'xml2js';
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
-import { IProduct, IReportsDTO } from 'src/common/interface';
-import * as unzipper from 'unzipper'; // Для розпакування
-import * as JSONStream from 'JSONStream'; // Для потокового запису в JSON
+import { IReportsDTO } from 'src/common/interface';
+import * as unzipper from 'unzipper';
+import * as JSONStream from 'JSONStream';
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { Readable, Transform } from 'stream';
+import { xmlToArray } from 'src/common/xml.parse';
 
 @Injectable()
 export class ConverterService {
@@ -18,39 +18,16 @@ export class ConverterService {
   private readonly apiKey = process.env.API_KEY;
   private readonly baseUrl = process.env.BASE_URL;
   private readonly reportsUrl = process.env.REPORT_STATUS_URL;
-  private readonly priceDiffernce = process.env.PRICE_DIFFERENCE;
+  private readonly priceDifference = process.env.PRICE_DIFFERENCE;
   private readonly chunkSize = process.env.CHUNK_SIZE;
 
   async convertXmlFileToObjects(file: Express.Multer.File) {
-    const parser = new xml2js.Parser();
-    const xmlContent = file.buffer.toString('utf-8');
-    const result: any = await parser.parseStringPromise(xmlContent);
-    const items = result.rss.channel[0].item;
+    const productGroups = xmlToArray(
+      file,
+      this.priceDifference,
+      +this.chunkSize,
+    );
 
-    const products: IProduct[] = items.map((item: any) => {
-      const priceString = item['g:price'][0];
-      const approximatePrice = parseFloat(priceString.replace(/[^\d.-]/g, ''));
-      return {
-        id: item['g:id'][0],
-        title: item['g:title'][0],
-        approximatePrice: approximatePrice,
-        priceDifference: this.priceDiffernce,
-      };
-    });
-
-    const chunkSize: number = +this.chunkSize;
-    const testProducts = products.slice(0, 2);
-
-    const productGroups = testProducts.reduce((groups, product, index) => {
-      const groupIndex = Math.floor(index / chunkSize);
-
-      if (!groups[groupIndex]) {
-        groups[groupIndex] = [];
-      }
-      groups[groupIndex].push(product);
-
-      return groups;
-    }, []);
     // console.log('productGroups :>> ', productGroups);
     // const lenght = productGroups.length;
 
@@ -82,22 +59,37 @@ export class ConverterService {
   }
 
   async postReport(dto: IReportsDTO) {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.post(this.baseUrl, dto, {
-          headers: {
-            'X-API-KEY': this.apiKey,
-          },
-        }),
-      );
+    const delay = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
 
-      return response.data.id;
-    } catch (error) {
-      this.logger.log(
-        `error data: ${JSON.stringify(error.response.data, null, 2)}`,
-      );
+    while (true) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.post(this.baseUrl, dto, {
+            headers: {
+              'X-API-KEY': this.apiKey,
+            },
+          }),
+        );
 
-      throw new Error(`Error while posting report: ${error.message}`);
+        return response.data.id; // Успішно – виходимо з циклу
+      } catch (error) {
+        const errorData = error.response?.data || {};
+        const errorMessage = error.message || 'Unknown error';
+
+        if (error.response?.status === 429) {
+          this.logger.warn(
+            `🚨 429 Чекаємо 10 сек... | Деталі: ${JSON.stringify(errorData, null, 2)}`,
+          );
+          await delay(10000); // Фіксована затримка 10 секунд
+          continue; // Пробуємо ще раз
+        }
+
+        this.logger.error(
+          `❌ Помилка в postReport: ${errorMessage} | Деталі: ${JSON.stringify(errorData, null, 2)}`,
+        );
+        throw new Error(`Error while posting report: ${errorMessage}`);
+      }
     }
   }
 
@@ -115,7 +107,6 @@ export class ConverterService {
         );
 
         const { reportStatus } = response.data;
-        console.log('reportStatus :>> ', reportStatus);
 
         if (reportStatus === 'Fulfilled') {
           this.logger.log(`Report is ready: ${JSON.stringify(response.data)}`);
@@ -140,7 +131,6 @@ export class ConverterService {
 
     while (true) {
       try {
-        // Завантаження ZIP файлу без збереження на диск
         const response = await firstValueFrom(
           this.httpService.get(`${this.baseUrl}/${reportId}`, {
             headers: {
@@ -150,21 +140,19 @@ export class ConverterService {
           }),
         );
 
-        // Створення потоку для отриманих даних
         const zipStream = Readable.from(response.data);
 
-        // Розпакування ZIP через потоки
         zipStream
-          .pipe(unzipper.Parse()) // Розпаковуємо ZIP на льоту
+          .pipe(unzipper.Parse())
           .on('entry', (entry) => {
             const fileName = entry.path;
 
             if (fileName.endsWith('.json')) {
               entry
-                .pipe(JSONStream.parse('*')) // Розбираємо JSON в потік
+                .pipe(JSONStream.parse('*'))
                 .pipe(this.appendToFinalJsonStream());
             } else {
-              entry.autodrain(); // Пропускаємо інші файли
+              entry.autodrain();
             }
           })
           .on('close', () => {
@@ -175,19 +163,19 @@ export class ConverterService {
             throw err;
           });
 
-        break; // Вихід з циклу після успішного завантаження та обробки
+        break;
       } catch (error) {
         const statusCode = error.response?.status;
         if (retryableErrors.includes(statusCode)) {
           this.logger.warn(
             `Error downloading report (status: ${statusCode}). Retrying in 10s...`,
           );
-          await new Promise((resolve) => setTimeout(resolve, 10000)); // Затримка перед повтором
+          await new Promise((resolve) => setTimeout(resolve, 10000));
         } else {
           this.logger.error(
             `Error downloading report: ${error.message}. Aborting.`,
           );
-          throw error; // Якщо помилка не відновлювана, зупиняємо цикл
+          throw error;
         }
       }
     }
@@ -197,29 +185,26 @@ export class ConverterService {
     const outputDir = path.join(process.cwd(), 'reports');
     const logger = this.logger;
 
-    // Перевіряємо чи існує директорія, якщо ні - створюємо
     if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true }); // Створюємо папку, якщо її немає
+      fs.mkdirSync(outputDir, { recursive: true });
     }
 
     const finalFilePath = path.join(outputDir, 'finalReport.json');
-    const writeStream = fs.createWriteStream(finalFilePath, { flags: 'w' }); // Використовуємо 'w' для перезапису файлу
+    const writeStream = fs.createWriteStream(finalFilePath, { flags: 'w' });
 
     let firstWrite = true;
 
-    // Створюємо потік, який записує chunk
     const transformStream = new Transform({
       objectMode: true,
       transform(chunk, encoding, callback) {
         // Якщо це перший елемент, то додаємо відкриваючі дужки для масиву "matchedProducts"
         if (firstWrite) {
-          writeStream.write('{"matchedProducts":[');
+          writeStream.write('{"matchedProducts":');
           firstWrite = false;
         } else {
           writeStream.write(',');
         }
 
-        // Перевірка та запис JSON
         if (typeof chunk === 'object') {
           writeStream.write(JSON.stringify(chunk));
         } else if (typeof chunk === 'string') {
@@ -234,14 +219,12 @@ export class ConverterService {
         callback();
       },
       flush(callback) {
-        // Завершуємо масив і об'єкт, додаємо закриваючі дужки
-        writeStream.write('], "matchingProductErrors": null}');
+        writeStream.write('}');
         writeStream.end();
         callback();
       },
     });
 
-    // Повертаємо потік для запису
     return transformStream;
   }
 }

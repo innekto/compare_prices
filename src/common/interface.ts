@@ -11,7 +11,7 @@ export interface IReportsDTO {
   reportStatusCallbackUrl?: 'string';
   note?: string;
   sources: string[];
-  matchByAi: true;
+  matchByAi: boolean;
 }
 
 export interface IReportsResponse {

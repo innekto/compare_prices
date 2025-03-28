@@ -4,6 +4,8 @@ import { AppService } from './app.service';
 import { ConverterModule } from './converter/converter.module';
 import { ConfigModule } from '@nestjs/config';
 import { AppLoggerMiddleware } from './common/logger.middleware';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -11,6 +13,7 @@ import { AppLoggerMiddleware } from './common/logger.middleware';
       envFilePath: '.env',
     }),
     ConverterModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

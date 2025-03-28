@@ -10,10 +10,8 @@ export const xmlToArray = async (
   const xmlContent = file.buffer.toString('utf-8');
 
   try {
-    // Чекаємо, поки XML буде правильно розпарсений
     const result: any = await parser.parseStringPromise(xmlContent);
 
-    // Лог для перевірки структури результату парсингу
     console.log('Parsed XML result:', result);
 
     if (!result.rss || !result.rss.channel || !result.rss.channel[0].item) {
@@ -47,8 +45,7 @@ export const xmlToArray = async (
     }, []);
     return productGroups;
   } catch (error) {
-    // Логування помилок
     console.error('Error parsing XML:', error.message);
-    throw error; // Можна або повернути помилку, або обробити її по-іншому
+    throw error;
   }
 };

@@ -22,14 +22,11 @@ export class ConverterService {
   private readonly chunkSize = process.env.CHUNK_SIZE;
 
   async convertXmlFileToObjects(file: Express.Multer.File) {
-    const productGroups = xmlToArray(
+    const productGroups = await xmlToArray(
       file,
       this.priceDifference,
       +this.chunkSize,
     );
-
-    // console.log('productGroups :>> ', productGroups);
-    // const lenght = productGroups.length;
 
     const delay = (ms: number) =>
       new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,9 +49,8 @@ export class ConverterService {
         this.logger.error(`Error in convertXmlFileToObjects: ${error.message}`);
       }
 
-      // Затримка 2 секунди між запитами для кожної групи
       this.logger.log('Waiting for 2 seconds before processing next group...');
-      await delay(2000); // Затримка 2 секунди
+      await delay(2000);
     }
   }
 
@@ -79,14 +75,14 @@ export class ConverterService {
 
         if (error.response?.status === 429) {
           this.logger.warn(
-            `🚨 429 Чекаємо 10 сек... | Деталі: ${JSON.stringify(errorData, null, 2)}`,
+            `429 Чекаємо 10 сек... | Деталі: ${JSON.stringify(errorData, null, 2)}`,
           );
           await delay(10000); // Фіксована затримка 10 секунд
           continue; // Пробуємо ще раз
         }
 
         this.logger.error(
-          `❌ Помилка в postReport: ${errorMessage} | Деталі: ${JSON.stringify(errorData, null, 2)}`,
+          `Помилка в postReport: ${errorMessage} | Деталі: ${JSON.stringify(errorData, null, 2)}`,
         );
         throw new Error(`Error while posting report: ${errorMessage}`);
       }

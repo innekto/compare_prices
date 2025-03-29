@@ -8,7 +8,7 @@ import * as JSONStream from 'JSONStream';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Readable, Transform } from 'stream';
-import { xmlToArray } from 'src/common/xml.parse';
+import { xmlToArray } from '../common/xml.parse';
 
 @Injectable()
 export class ConverterService {
@@ -68,22 +68,23 @@ export class ConverterService {
           }),
         );
 
-        return response.data.id; // Успішно – виходимо з циклу
+        return response.data.id;
       } catch (error) {
         const errorData = error.response?.data || {};
         const errorMessage = error.message || 'Unknown error';
 
         if (error.response?.status === 429) {
           this.logger.warn(
-            `429 Чекаємо 10 сек... | Деталі: ${JSON.stringify(errorData, null, 2)}`,
+            `429 Waiting 10 sec... | Details: ${JSON.stringify(errorData, null, 2)}`,
           );
-          await delay(10000); // Фіксована затримка 10 секунд
-          continue; // Пробуємо ще раз
+          await delay(10000);
+          continue;
         }
 
         this.logger.error(
-          `Помилка в postReport: ${errorMessage} | Деталі: ${JSON.stringify(errorData, null, 2)}`,
+          `Error in postReport: ${errorMessage} | Status: ${error.response?.status} | Details: ${JSON.stringify(errorData, null, 2)}`,
         );
+
         throw new Error(`Error while posting report: ${errorMessage}`);
       }
     }
@@ -193,7 +194,6 @@ export class ConverterService {
     const transformStream = new Transform({
       objectMode: true,
       transform(chunk, encoding, callback) {
-        // Якщо це перший елемент, то додаємо відкриваючі дужки для масиву "matchedProducts"
         if (firstWrite) {
           writeStream.write('{"matchedProducts":');
           firstWrite = false;

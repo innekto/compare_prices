@@ -31,9 +31,7 @@ export const xmlToArray = async (
       };
     });
 
-    const testProducts = products.slice(6, 8);
-
-    const productGroups = testProducts.reduce((groups, product, index) => {
+    const productGroups = products.reduce((groups, product, index) => {
       const groupIndex = Math.floor(index / chunkSize);
 
       if (!groups[groupIndex]) {

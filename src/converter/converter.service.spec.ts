@@ -46,7 +46,7 @@ describe('ConverterService', () => {
   });
 
   it('should retry on 429 error', async () => {
-    jest.setTimeout(10000); // збільшуємо час очікування для цього тесту
+    jest.setTimeout(10000);
 
     console.log('Starting retry test');
     const errorResponse = {
@@ -61,30 +61,26 @@ describe('ConverterService', () => {
       config: { headers: {} } as InternalAxiosRequestConfig<any>,
     };
 
-    // Мокаємо першу спробу на 429 помилку
     jest
       .spyOn(httpService, 'post')
       .mockReturnValueOnce(throwError(() => errorResponse));
 
-    // Затримка перед другою спробою
     console.log('Waiting 1 second before retry');
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // чекаємо 1 секунду
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Мокаємо другу спробу з успішною відповіддю
     jest.spyOn(httpService, 'post').mockReturnValueOnce(of(mockResponse));
 
     console.log('Attempting second request');
-    // Викликаємо сервіс і чекаємо результат
+
     const result = await service.postReport({
       products: [],
       sources: [],
       matchByAi: false,
     });
 
-    // Перевіряємо, що результат буде ідентифікатором
     console.log('Received result:', result);
     expect(result).toBe('67890');
-  }, 15000); // Тест триватиме до 15 секунд
+  }, 15000);
 
   it('should throw an error on unexpected response', async () => {
     jest

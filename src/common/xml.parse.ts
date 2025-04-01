@@ -29,18 +29,16 @@ export const xmlToArray = async (
       };
     });
 
-    const productGroups = products
-      .slice(0, 2)
-      .reduce((groups, product, index) => {
-        const groupIndex = Math.floor(index / chunkSize);
+    const productGroups = products.reduce((groups, product, index) => {
+      const groupIndex = Math.floor(index / chunkSize);
 
-        if (!groups[groupIndex]) {
-          groups[groupIndex] = [];
-        }
-        groups[groupIndex].push(product);
+      if (!groups[groupIndex]) {
+        groups[groupIndex] = [];
+      }
+      groups[groupIndex].push(product);
 
-        return groups;
-      }, []);
+      return groups;
+    }, []);
     return productGroups;
   } catch (error) {
     console.error('Error parsing XML:', error.message);

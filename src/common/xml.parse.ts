@@ -12,8 +12,6 @@ export const xmlToArray = async (
   try {
     const result: any = await parser.parseStringPromise(xmlContent);
 
-    console.log('Parsed XML result:', result);
-
     if (!result.rss || !result.rss.channel || !result.rss.channel[0].item) {
       throw new Error('XML structure is missing expected "rss.channel.item"');
     }
@@ -31,16 +29,18 @@ export const xmlToArray = async (
       };
     });
 
-    const productGroups = products.reduce((groups, product, index) => {
-      const groupIndex = Math.floor(index / chunkSize);
+    const productGroups = products
+      .slice(0, 2)
+      .reduce((groups, product, index) => {
+        const groupIndex = Math.floor(index / chunkSize);
 
-      if (!groups[groupIndex]) {
-        groups[groupIndex] = [];
-      }
-      groups[groupIndex].push(product);
+        if (!groups[groupIndex]) {
+          groups[groupIndex] = [];
+        }
+        groups[groupIndex].push(product);
 
-      return groups;
-    }, []);
+        return groups;
+      }, []);
     return productGroups;
   } catch (error) {
     console.error('Error parsing XML:', error.message);

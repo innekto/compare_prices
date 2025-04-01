@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
 import { UploadApiResponse, UploadApiErrorResponse } from 'cloudinary';
 import * as streamifier from 'streamifier';
+import { v4 as uuidv4 } from 'uuid';
 
 type CloudinaryResponse = UploadApiResponse | UploadApiErrorResponse;
 
@@ -12,9 +13,11 @@ export class CloudinaryService {
     fileName: string,
   ): Promise<CloudinaryResponse> {
     return new Promise<CloudinaryResponse>((resolve, reject) => {
+      const uniqueFileName = `${fileName}-${Date.now()}-${uuidv4()}.json`;
+
       const uploadStream = cloudinary.uploader.upload_stream(
         {
-          public_id: `${fileName}.json`,
+          public_id: uniqueFileName,
           resource_type: 'auto',
         },
         (error, result) => {
@@ -22,6 +25,7 @@ export class CloudinaryService {
           resolve(result);
         },
       );
+
       streamifier.createReadStream(buffer).pipe(uploadStream);
     });
   }
